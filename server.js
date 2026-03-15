@@ -136,6 +136,25 @@ app.get('/avatar', async (req, res) => {
   }
 });
 
+// Debug — test which avatar CDN URL format works
+app.get('/debug-avatar', async (_req, res) => {
+  const filename = 'uploaded/2022/11/27/JoAb_8_9fQftKKOQVl0XHt911jd1vUs3QLd48bJjeRM.webp';
+  const urls = [
+    `https://characterai.io/i/200/www/avatars/${filename}`,
+    `https://characterai.io/i/80/www/avatars/${filename}`,
+    `https://characterai.io/www/avatars/${filename}`,
+    `https://static.character.ai/avatars/${filename}`,
+    `https://characterai.io/${filename}`,
+  ];
+  const results = await Promise.all(urls.map(async url => {
+    try {
+      const r = await fetch(url, { headers: { 'Referer': 'https://character.ai/', 'User-Agent': 'Mozilla/5.0' } });
+      return { url, status: r.status, ct: r.headers.get('content-type') };
+    } catch(e) { return { url, error: e.message }; }
+  }));
+  res.json(results);
+});
+
 // Health + token check
 app.get('/health', async (_req, res) => {
   try {
