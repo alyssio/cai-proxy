@@ -148,7 +148,7 @@ app.get('/debug-avatar', async (_req, res) => {
   ];
   const results = await Promise.all(urls.map(async url => {
     try {
-      const r = await fetch(url, { headers: { 'Referer': 'https://character.ai/', 'User-Agent': 'Mozilla/5.0' } });
+      const r = await fetch(url, { headers: HEADERS });
       return { url, status: r.status, ct: r.headers.get('content-type') };
     } catch(e) { return { url, error: e.message }; }
   }));
