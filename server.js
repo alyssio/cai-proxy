@@ -32,32 +32,24 @@ function mapChar(c) {
   };
 }
 
-// Featured characters — try multiple endpoints
+// Featured/recommended characters
 app.get('/discover', async (_req, res) => {
-  const endpoints = [
-    'https://character.ai/api/trpc/character.getFeaturedCharacters',
-    'https://character.ai/api/trpc/recommendation.getRecommendations',
-    'https://character.ai/api/trpc/character.getTrendingCharacters',
-    'https://neo.character.ai/recommendation/v1/explore/',
-  ];
-  for (const url of endpoints) {
-    try {
-      const r    = await fetch(url, { headers: HEADERS });
-      const text = await r.text();
-      console.log(`${url} → ${r.status}: ${text.slice(0, 200)}`);
-      const data = JSON.parse(text);
-      const list = data?.result?.data?.json?.characters
-                ?? data?.result?.data?.json?.featured_characters
-                ?? data?.featured_characters
-                ?? data?.characters
-                ?? data?.data?.characters
-                ?? [];
-      if (list.length) { res.json({ characters: list.map(mapChar) }); return; }
-    } catch (err) {
-      console.error(`${url} failed:`, err.message);
-    }
+  try {
+    const r    = await fetch('https://feed.api.character.ai/api/feed/recommended', { headers: HEADERS });
+    const text = await r.text();
+    console.log(`recommended → ${r.status}: ${text.slice(0, 300)}`);
+    const data = JSON.parse(text);
+    // Dig through possible response shapes
+    const list = data?.characters
+              ?? data?.results
+              ?? data?.data?.characters
+              ?? data?.feed?.map(item => item.character ?? item).filter(Boolean)
+              ?? [];
+    res.json({ characters: list.map(mapChar) });
+  } catch (err) {
+    console.error('/discover error:', err.message);
+    res.status(500).json({ error: err.message });
   }
-  res.json({ characters: [] });
 });
 
 // Search characters
