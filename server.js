@@ -79,6 +79,23 @@ app.get('/jai/discover', async (_req, res) => {
   }
 });
 
+// ── Avatar proxy ──────────────────────────────────────────────────────────────
+app.get('/jai/avatar', async (req, res) => {
+  const url = req.query.url;
+  if (!url || !url.startsWith('https://ella.janitorai.com/')) {
+    return res.status(400).json({ error: 'invalid url' });
+  }
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return res.status(r.status).end();
+    const buf = await r.arrayBuffer();
+    res.set('Content-Type', r.headers.get('content-type') || 'image/jpeg');
+    res.send(Buffer.from(buf));
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
