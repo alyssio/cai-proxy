@@ -138,13 +138,12 @@ app.get('/avatar', async (req, res) => {
 
 // Debug — test which avatar CDN URL format works + raw char detail
 app.get('/debug-avatar', async (_req, res) => {
-  const filename = 'uploaded/2022/11/27/JoAb_8_9fQftKKOQVl0XHt911jd1vUs3QLd48bJjeRM.webp';
+  const filename = 'uploaded/2025/2/10/BTz71rhjYE0uluVaN6s4F6hGvBxfFINQBzp9yLc5vC4.webp';
   const urls = [
     `https://characterai.io/i/200/www/avatars/${filename}`,
+    `https://characterai.io/i/80/www/avatars/${filename}`,
     `https://storage.googleapis.com/characterai-avatar/${filename}`,
-    `https://storage.googleapis.com/character_ai_assets/${filename}`,
     `https://storage.googleapis.com/character_ai_prod/${filename}`,
-    `https://storage.googleapis.com/characterai/${filename}`,
   ];
   const urlResults = await Promise.all(urls.map(async url => {
     try {
