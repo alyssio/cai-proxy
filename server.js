@@ -26,6 +26,7 @@ function mapChar(c) {
     id:          c.external_id ?? c.id ?? '',
     name:        c.participant__name ?? c.name ?? 'Unknown',
     description: c.description ?? c.tagline ?? c.title ?? '',
+    greeting:    c.greeting ?? '',
     avatar:      c.avatar_file_name
                    ? `https://characterai.io/i/200/www/avatars/${c.avatar_file_name}`
                    : null,
@@ -115,7 +116,10 @@ app.get('/avatar', async (req, res) => {
     return res.status(400).json({ error: 'Invalid URL' });
   }
   try {
-    const r = await fetch(url, { headers: HEADERS });
+    const r = await fetch(url, { headers: {
+      'Referer': 'https://character.ai/',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    } });
     const buf = await r.arrayBuffer();
     res.set('Content-Type', r.headers.get('content-type') || 'image/jpeg');
     res.set('Cache-Control', 'public, max-age=86400');
