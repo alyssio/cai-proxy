@@ -52,11 +52,19 @@ app.get('/discover', async (_req, res) => {
       const inner = Array.isArray(data) ? data[0] : data;
       return inner?.result?.data?.json?.characters ?? inner?.characters ?? [];
     }));
+    const BLOCK_KEYWORDS = [
+      'roblox', 'minecraft', 'fortnite', 'genshin', 'blox fruit',
+      'rpg', 'scenario', 'survival', 'choose your', 'girls high',
+      'all-girl', 'all girl', 'yandere simulator',
+    ];
     const seen = new Set();
     const all  = results.flat().filter(c => {
       const id = c.external_id ?? c.id;
       if (!id || seen.has(id)) return false;
       if (!c.avatar_file_name) return false;
+      if (c.gender === 'female') return false;
+      const nameDesc = `${c.name || ''} ${c.title || ''} ${c.description || ''}`.toLowerCase();
+      if (BLOCK_KEYWORDS.some(w => nameDesc.includes(w))) return false;
       seen.add(id);
       return true;
     });
