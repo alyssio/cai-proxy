@@ -3,7 +3,6 @@ import cors from 'cors';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
-const TOKEN = process.env.CAI_TOKEN; // just the hex, no "Token " prefix
 
 app.use(cors({
   origin: [
@@ -13,152 +12,101 @@ app.use(cors({
   ]
 }));
 
-const HEADERS = {
-  'Authorization': `Token ${TOKEN}`,
-  'Content-Type': 'application/json',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-  'Referer': 'https://character.ai/',
-  'Origin': 'https://character.ai',
-};
+// ── Janitor.ai auth (auto-refresh every 25 min) ──────────────────────────────
+const SUPABASE = 'https://mcmzxtzommpnxkynddbo.supabase.co';
+let jaiToken   = null;
 
-function mapChar(c) {
+async function refreshJaiToken() {
+  const rt = process.env.JAI_REFRESH_TOKEN;
+  if (!rt) { console.error('JAI_REFRESH_TOKEN not set'); return; }
+  try {
+    const r = await fetch(`${SUPABASE}/auth/v1/token?grant_type=refresh_token`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ refresh_token: rt }),
+    });
+    const data = await r.json();
+    if (data.access_token) {
+      jaiToken = data.access_token;
+      if (data.refresh_token) process.env.JAI_REFRESH_TOKEN = data.refresh_token;
+      console.log('JAI token refreshed OK');
+    } else {
+      console.error('JAI refresh failed:', JSON.stringify(data));
+    }
+  } catch(e) { console.error('JAI refresh error:', e.message); }
+}
+
+refreshJaiToken();
+setInterval(refreshJaiToken, 25 * 60 * 1000);
+
+function jaiHeaders() {
   return {
-    id:          c.external_id ?? c.id ?? '',
-    name:        c.participant__name ?? c.name ?? 'Unknown',
-    description: c.description ?? c.tagline ?? c.title ?? '',
-    greeting:    c.greeting ?? '',
-    avatar:      c.avatar_file_name
-                   ? `https://characterai.io/i/400/static/avatars/${c.avatar_file_name}?webp=true&anim=0`
-                   : null,
+    'Authorization': `Bearer ${jaiToken}`,
+    'User-Agent':    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   };
 }
 
-// Discover — cache results for 1 hour so page navigation is instant
-let discoverCache = null;
-let discoverCacheAt = 0;
-const DISCOVER_TTL = 60 * 60 * 1000; // 1 hour
+function stripHtml(html) {
+  return (html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
-app.get('/discover', async (_req, res) => {
-  if (discoverCache && Date.now() - discoverCacheAt < DISCOVER_TTL) {
-    return res.json({ characters: discoverCache });
+function mapJai(c) {
+  const slugs = (c.tags || []).map(t => t.slug);
+  return {
+    id:          c.id,
+    name:        c.name || 'Unknown',
+    description: stripHtml(c.description).slice(0, 300),
+    avatar:      c.avatar ? `https://ella.janitorai.com/profile-pics/${c.avatar}` : null,
+    mlm:         slugs.includes('mlm'),
+  };
+}
+
+// ── J.AI Discover ─────────────────────────────────────────────────────────────
+let jaiCache    = null;
+let jaiCacheAt  = 0;
+const JAI_TTL   = 60 * 60 * 1000;
+
+const JAI_BLOCK_SLUGS = ['scenario', 'rpg', 'multiplepeople', 'multiplefemales'];
+
+app.get('/jai/discover', async (_req, res) => {
+  if (jaiCache && Date.now() - jaiCacheAt < JAI_TTL) {
+    return res.json({ characters: jaiCache });
   }
-  const terms = ['anime', 'fantasy', 'romance', 'adventure', 'villain', 'mentor'];
+  if (!jaiToken) await refreshJaiToken();
+  if (!jaiToken) return res.status(503).json({ error: 'JAI auth not available' });
+
   try {
-    const results = await Promise.all(terms.map(async term => {
-      const input = encodeURIComponent(JSON.stringify({ "0": { json: { searchQuery: term, sortedBy: 'relevance' } } }));
-      const r    = await fetch(`https://character.ai/api/trpc/search.search?batch=1&input=${input}`, { headers: HEADERS });
-      const text = await r.text();
-      const data = JSON.parse(text);
-      const inner = Array.isArray(data) ? data[0] : data;
-      return inner?.result?.data?.json?.characters ?? inner?.characters ?? [];
-    }));
-    const BLOCK_KEYWORDS = [
-      'roblox', 'minecraft', 'fortnite', 'genshin', 'blox fruit',
-      'rpg', 'scenario', 'survival', 'choose your', 'girls high',
-      'all-girl', 'all girl', 'yandere simulator',
-    ];
-    const seen = new Set();
-    const all  = results.flat().filter(c => {
-      const id = c.external_id ?? c.id;
-      if (!id || seen.has(id)) return false;
-      if (!c.avatar_file_name) return false;
-      if (c.gender === 'female') return false;
-      const nameDesc = `${c.name || ''} ${c.title || ''} ${c.description || ''}`.toLowerCase();
-      if (BLOCK_KEYWORDS.some(w => nameDesc.includes(w))) return false;
-      seen.add(id);
-      return true;
+    const r = await fetch('https://janitorai.com/hampter/characters?page=1&mode=nsfw&sort=popular', {
+      headers: jaiHeaders(),
     });
-    for (let i = all.length - 1; i > 0; i--) {
+    const data = await r.json();
+    const chars = data.data || [];
+
+    const filtered = chars.filter(c => {
+      const slugs = (c.tags || []).map(t => t.slug);
+      const hasMale = slugs.includes('male') || slugs.includes('mlm');
+      const blocked = JAI_BLOCK_SLUGS.some(s => slugs.includes(s));
+      return hasMale && !blocked && c.avatar;
+    });
+
+    // Shuffle
+    for (let i = filtered.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [all[i], all[j]] = [all[j], all[i]];
+      [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
     }
-    discoverCache  = all.map(mapChar);
-    discoverCacheAt = Date.now();
-    res.json({ characters: discoverCache });
-  } catch (err) {
-    console.error('/discover error:', err.message);
-    res.status(500).json({ error: err.message });
+
+    jaiCache   = filtered.map(mapJai);
+    jaiCacheAt = Date.now();
+    res.json({ characters: jaiCache });
+  } catch(e) {
+    console.error('/jai/discover error:', e.message);
+    res.status(500).json({ error: e.message });
   }
 });
 
-// Search characters
-app.get('/search', async (req, res) => {
-  const q = (req.query.q ?? '').trim();
-  if (!q) return res.status(400).json({ error: 'Missing ?q= parameter.' });
-  try {
-    const input = encodeURIComponent(JSON.stringify({ "0": { json: { searchQuery: q, sortedBy: 'relevance' } } }));
-    const r    = await fetch(`https://character.ai/api/trpc/search.search?batch=1&input=${input}`, { headers: HEADERS });
-    const text = await r.text();
-    const data = JSON.parse(text);
-    const inner = Array.isArray(data) ? data[0] : data;
-    const list = inner?.result?.data?.json?.characters ?? inner?.characters ?? [];
-    res.json({ characters: list.map(mapChar) });
-  } catch (err) {
-    console.error('/search error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
+// ── Health ────────────────────────────────────────────────────────────────────
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, jaiAuth: !!jaiToken });
 });
 
-// Character detail (for getting greeting/opening message)
-app.get('/character/:id', async (req, res) => {
-  const id = req.params.id;
-  try {
-    const r    = await fetch(`https://character.ai/api/trpc/character.getCharacter?input=${encodeURIComponent(JSON.stringify({ external_id: id }))}`, { headers: HEADERS });
-    const text = await r.text();
-    const data = JSON.parse(text);
-    const char = data?.result?.data?.json?.character ?? data?.character ?? data;
-    res.json({
-      id:          char.external_id ?? id,
-      name:        char.participant__name ?? char.name ?? '',
-      description: char.description ?? '',
-      greeting:    char.greeting ?? char.starter ?? '',
-      avatar:      char.avatar_file_name
-                     ? `https://characterai.io/i/400/www/avatars/${char.avatar_file_name}`
-                     : null,
-    });
-  } catch (err) {
-    console.error('/character error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Avatar proxy — fetch characterai.io images server-side to bypass CDN blocking
-app.get('/avatar', async (req, res) => {
-  const url = req.query.url;
-  if (!url || !url.startsWith('https://characterai.io/')) {
-    return res.status(400).json({ error: 'Invalid URL' });
-  }
-  try {
-    const r = await fetch(url, { headers: {
-      'Referer': 'https://character.ai/',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    } });
-    const ct = r.headers.get('content-type') || '';
-    console.log(`/avatar ${r.status} ${ct} ${url.slice(0, 80)}`);
-    if (!r.ok) {
-      const body = await r.text();
-      console.log('/avatar error body:', body.slice(0, 200));
-      return res.status(r.status).json({ error: body.slice(0, 200) });
-    }
-    const buf = await r.arrayBuffer();
-    res.set('Content-Type', ct || 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=86400');
-    res.send(Buffer.from(buf));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-// Health + token check
-app.get('/health', async (_req, res) => {
-  try {
-    const r = await fetch('https://character.ai/api/trpc/user.get', { headers: HEADERS });
-    const ok = r.ok;
-    res.json({ ok: true, auth: ok, status: r.status });
-  } catch (e) {
-    res.json({ ok: true, auth: false, error: e.message });
-  }
-});
-
-app.listen(PORT, () => console.log(`CAI proxy running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Proxy running on port ${PORT}`));
