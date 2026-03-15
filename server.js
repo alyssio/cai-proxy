@@ -33,20 +33,25 @@ function mapChar(c) {
   };
 }
 
-// Discover — search popular terms and combine results
+// Discover — cache results for 1 hour so page navigation is instant
+let discoverCache = null;
+let discoverCacheAt = 0;
+const DISCOVER_TTL = 60 * 60 * 1000; // 1 hour
+
 app.get('/discover', async (_req, res) => {
+  if (discoverCache && Date.now() - discoverCacheAt < DISCOVER_TTL) {
+    return res.json({ characters: discoverCache });
+  }
   const terms = ['anime', 'fantasy', 'romance', 'adventure', 'villain', 'mentor'];
   try {
     const results = await Promise.all(terms.map(async term => {
       const input = encodeURIComponent(JSON.stringify({ "0": { json: { searchQuery: term, sortedBy: 'relevance' } } }));
       const r    = await fetch(`https://character.ai/api/trpc/search.search?batch=1&input=${input}`, { headers: HEADERS });
       const text = await r.text();
-      console.log(`search "${term}" → ${r.status}: ${text.slice(0, 200)}`);
       const data = JSON.parse(text);
       const inner = Array.isArray(data) ? data[0] : data;
       return inner?.result?.data?.json?.characters ?? inner?.characters ?? [];
     }));
-    // Flatten, dedupe by id, shuffle
     const seen = new Set();
     const all  = results.flat().filter(c => {
       const id = c.external_id ?? c.id;
@@ -55,12 +60,13 @@ app.get('/discover', async (_req, res) => {
       seen.add(id);
       return true;
     });
-    // Shuffle
     for (let i = all.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [all[i], all[j]] = [all[j], all[i]];
     }
-    res.json({ characters: all.map(mapChar) });
+    discoverCache  = all.map(mapChar);
+    discoverCacheAt = Date.now();
+    res.json({ characters: discoverCache });
   } catch (err) {
     console.error('/discover error:', err.message);
     res.status(500).json({ error: err.message });
