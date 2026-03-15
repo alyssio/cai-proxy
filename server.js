@@ -28,7 +28,7 @@ function mapChar(c) {
     description: c.description ?? c.tagline ?? c.title ?? '',
     greeting:    c.greeting ?? '',
     avatar:      c.avatar_file_name
-                   ? `https://characterai.io/i/200/static/avatars/${c.avatar_file_name}?webp=true&anim=0`
+                   ? `https://characterai.io/i/400/static/avatars/${c.avatar_file_name}?webp=true&anim=0`
                    : null,
   };
 }
