@@ -51,6 +51,7 @@ app.get('/discover', async (_req, res) => {
     const all  = results.flat().filter(c => {
       const id = c.external_id ?? c.id;
       if (!id || seen.has(id)) return false;
+      if (!c.avatar_file_name) return false;
       seen.add(id);
       return true;
     });
