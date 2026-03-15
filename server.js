@@ -37,12 +37,13 @@ app.get('/discover', async (_req, res) => {
   const terms = ['anime', 'fantasy', 'romance', 'adventure', 'villain', 'mentor'];
   try {
     const results = await Promise.all(terms.map(async term => {
-      const input = encodeURIComponent(JSON.stringify({ json: { query: term } }));
-      const r    = await fetch(`https://character.ai/api/trpc/character.search?input=${input}`, { headers: HEADERS });
+      const input = encodeURIComponent(JSON.stringify({ "0": { json: { searchQuery: term, tagId: null, sortedBy: 'relevance', filters: null, cursor: null } } }));
+      const r    = await fetch(`https://character.ai/api/trpc/search.search?batch=1&input=${input}`, { headers: HEADERS });
       const text = await r.text();
       console.log(`search "${term}" → ${r.status}: ${text.slice(0, 200)}`);
       const data = JSON.parse(text);
-      return data?.result?.data?.json?.characters ?? data?.characters ?? [];
+      const inner = Array.isArray(data) ? data[0] : data;
+      return inner?.result?.data?.json?.characters ?? inner?.characters ?? [];
     }));
     // Flatten, dedupe by id, shuffle
     const seen = new Set();
@@ -69,10 +70,12 @@ app.get('/search', async (req, res) => {
   const q = (req.query.q ?? '').trim();
   if (!q) return res.status(400).json({ error: 'Missing ?q= parameter.' });
   try {
-    const r    = await fetch(`https://character.ai/api/trpc/character.search?input=${encodeURIComponent(JSON.stringify({ query: q }))}`, { headers: HEADERS });
+    const input = encodeURIComponent(JSON.stringify({ "0": { json: { searchQuery: q, tagId: null, sortedBy: 'relevance', filters: null, cursor: null } } }));
+    const r    = await fetch(`https://character.ai/api/trpc/search.search?batch=1&input=${input}`, { headers: HEADERS });
     const text = await r.text();
     const data = JSON.parse(text);
-    const list = data?.result?.data?.json?.characters ?? data?.characters ?? [];
+    const inner = Array.isArray(data) ? data[0] : data;
+    const list = inner?.result?.data?.json?.characters ?? inner?.characters ?? [];
     res.json({ characters: list.map(mapChar) });
   } catch (err) {
     console.error('/search error:', err.message);
