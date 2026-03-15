@@ -140,10 +140,11 @@ app.get('/avatar', async (req, res) => {
 app.get('/debug-avatar', async (_req, res) => {
   const filename = 'uploaded/2025/2/10/BTz71rhjYE0uluVaN6s4F6hGvBxfFINQBzp9yLc5vC4.webp';
   const urls = [
-    `https://characterai.io/i/200/www/avatars/${filename}`,
-    `https://characterai.io/i/80/www/avatars/${filename}`,
-    `https://storage.googleapis.com/characterai-avatar/${filename}`,
-    `https://storage.googleapis.com/character_ai_prod/${filename}`,
+    `https://characterai.io/i/200/${filename}`,
+    `https://characterai.io/i/80/${filename}`,
+    `https://characterai.io/i/200/avatars/${filename}`,
+    `https://characterai.io/i/200/character.ai/avatars/${filename}`,
+    `https://characterai.io/i/200/static/avatars/${filename}`,
   ];
   const urlResults = await Promise.all(urls.map(async url => {
     try {
