@@ -53,6 +53,8 @@ app.get('/discover', async (_req, res) => {
       seen.add(id);
       return true;
     });
+    // Log first character keys to debug avatar field
+    if (all.length) console.log('FIRST CHAR KEYS:', Object.keys(all[0]), 'avatar_file_name:', all[0].avatar_file_name);
     // Shuffle
     for (let i = all.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
