@@ -106,6 +106,23 @@ app.get('/character/:id', async (req, res) => {
   }
 });
 
+// Avatar proxy — fetch characterai.io images server-side to bypass CDN blocking
+app.get('/avatar', async (req, res) => {
+  const url = req.query.url;
+  if (!url || !url.startsWith('https://characterai.io/')) {
+    return res.status(400).json({ error: 'Invalid URL' });
+  }
+  try {
+    const r = await fetch(url, { headers: HEADERS });
+    const buf = await r.arrayBuffer();
+    res.set('Content-Type', r.headers.get('content-type') || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(buf));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Health + token check
 app.get('/health', async (_req, res) => {
   try {
