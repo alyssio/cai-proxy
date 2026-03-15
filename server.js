@@ -120,8 +120,15 @@ app.get('/avatar', async (req, res) => {
       'Referer': 'https://character.ai/',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     } });
+    const ct = r.headers.get('content-type') || '';
+    console.log(`/avatar ${r.status} ${ct} ${url.slice(0, 80)}`);
+    if (!r.ok) {
+      const body = await r.text();
+      console.log('/avatar error body:', body.slice(0, 200));
+      return res.status(r.status).json({ error: body.slice(0, 200) });
+    }
     const buf = await r.arrayBuffer();
-    res.set('Content-Type', r.headers.get('content-type') || 'image/jpeg');
+    res.set('Content-Type', ct || 'image/jpeg');
     res.set('Cache-Control', 'public, max-age=86400');
     res.send(Buffer.from(buf));
   } catch (err) {
