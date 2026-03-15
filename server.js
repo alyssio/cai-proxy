@@ -32,20 +32,29 @@ function mapChar(c) {
   };
 }
 
-// Featured/recommended characters
+// Discover — search popular terms and combine results
 app.get('/discover', async (_req, res) => {
+  const terms = ['anime', 'fantasy', 'romance', 'adventure', 'villain', 'mentor'];
   try {
-    const r    = await fetch('https://feed.api.character.ai/api/feed/recommended', { headers: HEADERS });
-    const text = await r.text();
-    console.log(`recommended → ${r.status}: ${text.slice(0, 300)}`);
-    const data = JSON.parse(text);
-    // Dig through possible response shapes
-    const list = data?.characters
-              ?? data?.results
-              ?? data?.data?.characters
-              ?? data?.feed?.map(item => item.character ?? item).filter(Boolean)
-              ?? [];
-    res.json({ characters: list.map(mapChar) });
+    const results = await Promise.all(terms.map(async term => {
+      const r    = await fetch(`https://character.ai/api/trpc/character.search?input=${encodeURIComponent(JSON.stringify({ query: term }))}`, { headers: HEADERS });
+      const data = await r.json();
+      return data?.result?.data?.json?.characters ?? data?.characters ?? [];
+    }));
+    // Flatten, dedupe by id, shuffle
+    const seen = new Set();
+    const all  = results.flat().filter(c => {
+      const id = c.external_id ?? c.id;
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    // Shuffle
+    for (let i = all.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [all[i], all[j]] = [all[j], all[i]];
+    }
+    res.json({ characters: all.map(mapChar) });
   } catch (err) {
     console.error('/discover error:', err.message);
     res.status(500).json({ error: err.message });
