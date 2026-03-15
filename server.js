@@ -41,7 +41,18 @@ app.get('/jai/discover', async (_req, res) => {
 
   try {
     const r = await fetch('https://janitorai.com/hampter/characters?page=1&mode=nsfw&sort=popular', {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      headers: {
+        'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept':          'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer':         'https://janitorai.com/characters',
+        'Origin':          'https://janitorai.com',
+        'sec-ch-ua':       '"Chromium";v="122", "Not(A:Brand";v="24"',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest':  'empty',
+        'sec-fetch-mode':  'cors',
+        'sec-fetch-site':  'same-origin',
+      },
     });
     const data = await r.json();
     const chars = data.data || [];
