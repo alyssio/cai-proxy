@@ -65,6 +65,29 @@ app.get('/search', async (req, res) => {
   }
 });
 
+// Character detail (for getting greeting/opening message)
+app.get('/character/:id', async (req, res) => {
+  const id = req.params.id;
+  try {
+    const r    = await fetch(`https://character.ai/api/trpc/character.getCharacter?input=${encodeURIComponent(JSON.stringify({ external_id: id }))}`, { headers: HEADERS });
+    const text = await r.text();
+    const data = JSON.parse(text);
+    const char = data?.result?.data?.json?.character ?? data?.character ?? data;
+    res.json({
+      id:          char.external_id ?? id,
+      name:        char.participant__name ?? char.name ?? '',
+      description: char.description ?? '',
+      greeting:    char.greeting ?? char.starter ?? '',
+      avatar:      char.avatar_file_name
+                     ? `https://characterai.io/i/400/www/avatars/${char.avatar_file_name}`
+                     : null,
+    });
+  } catch (err) {
+    console.error('/character error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Health + token check
 app.get('/health', async (_req, res) => {
   try {
