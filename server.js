@@ -37,8 +37,11 @@ app.get('/discover', async (_req, res) => {
   const terms = ['anime', 'fantasy', 'romance', 'adventure', 'villain', 'mentor'];
   try {
     const results = await Promise.all(terms.map(async term => {
-      const r    = await fetch(`https://character.ai/api/trpc/character.search?input=${encodeURIComponent(JSON.stringify({ query: term }))}`, { headers: HEADERS });
-      const data = await r.json();
+      const input = encodeURIComponent(JSON.stringify({ json: { query: term } }));
+      const r    = await fetch(`https://character.ai/api/trpc/character.search?input=${input}`, { headers: HEADERS });
+      const text = await r.text();
+      console.log(`search "${term}" → ${r.status}: ${text.slice(0, 200)}`);
+      const data = JSON.parse(text);
       return data?.result?.data?.json?.characters ?? data?.characters ?? [];
     }));
     // Flatten, dedupe by id, shuffle
