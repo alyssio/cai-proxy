@@ -136,23 +136,35 @@ app.get('/avatar', async (req, res) => {
   }
 });
 
-// Debug — test which avatar CDN URL format works
+// Debug — test which avatar CDN URL format works + raw char detail
 app.get('/debug-avatar', async (_req, res) => {
   const filename = 'uploaded/2022/11/27/JoAb_8_9fQftKKOQVl0XHt911jd1vUs3QLd48bJjeRM.webp';
   const urls = [
     `https://characterai.io/i/200/www/avatars/${filename}`,
-    `https://characterai.io/i/80/www/avatars/${filename}`,
-    `https://characterai.io/www/avatars/${filename}`,
-    `https://static.character.ai/avatars/${filename}`,
-    `https://characterai.io/${filename}`,
+    `https://storage.googleapis.com/characterai-avatar/${filename}`,
+    `https://storage.googleapis.com/character_ai_assets/${filename}`,
+    `https://storage.googleapis.com/character_ai_prod/${filename}`,
+    `https://storage.googleapis.com/characterai/${filename}`,
   ];
-  const results = await Promise.all(urls.map(async url => {
+  const urlResults = await Promise.all(urls.map(async url => {
     try {
       const r = await fetch(url, { headers: HEADERS });
-      return { url, status: r.status, ct: r.headers.get('content-type') };
-    } catch(e) { return { url, error: e.message }; }
+      return { url: url.slice(0, 80), status: r.status, ct: r.headers.get('content-type') };
+    } catch(e) { return { url: url.slice(0, 80), error: e.message }; }
   }));
-  res.json(results);
+
+  // Also fetch raw char detail for RORONOA ZORO to see all avatar fields
+  let charDetail = null;
+  try {
+    const input = encodeURIComponent(JSON.stringify({ "0": { json: { searchQuery: 'roronoa zoro', sortedBy: 'relevance' } } }));
+    const r = await fetch(`https://character.ai/api/trpc/search.search?batch=1&input=${input}`, { headers: HEADERS });
+    const data = JSON.parse(await r.text());
+    const inner = Array.isArray(data) ? data[0] : data;
+    const chars = inner?.result?.data?.json?.characters ?? [];
+    charDetail = chars[0] ?? null;
+  } catch(e) { charDetail = { error: e.message }; }
+
+  res.json({ urlResults, charDetail });
 });
 
 // Health + token check
