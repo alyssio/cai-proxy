@@ -28,7 +28,7 @@ function mapChar(c) {
     description: c.description ?? c.tagline ?? c.title ?? '',
     greeting:    c.greeting ?? '',
     avatar:      c.avatar_file_name
-                   ? `https://characterai.io/i/200/www/avatars/${c.avatar_file_name}`
+                   ? `https://characterai.io/i/200/static/avatars/${c.avatar_file_name}?webp=true&anim=0`
                    : null,
   };
 }
@@ -54,8 +54,6 @@ app.get('/discover', async (_req, res) => {
       seen.add(id);
       return true;
     });
-    // Log first character keys to debug avatar field
-    if (all.length) console.log('FIRST CHAR KEYS:', Object.keys(all[0]), 'avatar_file_name:', all[0].avatar_file_name);
     // Shuffle
     for (let i = all.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -136,36 +134,6 @@ app.get('/avatar', async (req, res) => {
   }
 });
 
-// Debug — test which avatar CDN URL format works + raw char detail
-app.get('/debug-avatar', async (_req, res) => {
-  const filename = 'uploaded/2025/2/10/BTz71rhjYE0uluVaN6s4F6hGvBxfFINQBzp9yLc5vC4.webp';
-  const urls = [
-    `https://characterai.io/i/200/${filename}`,
-    `https://characterai.io/i/80/${filename}`,
-    `https://characterai.io/i/200/avatars/${filename}`,
-    `https://characterai.io/i/200/character.ai/avatars/${filename}`,
-    `https://characterai.io/i/200/static/avatars/${filename}`,
-  ];
-  const urlResults = await Promise.all(urls.map(async url => {
-    try {
-      const r = await fetch(url, { headers: HEADERS });
-      return { url: url.slice(0, 80), status: r.status, ct: r.headers.get('content-type') };
-    } catch(e) { return { url: url.slice(0, 80), error: e.message }; }
-  }));
-
-  // Also fetch raw char detail for RORONOA ZORO to see all avatar fields
-  let charDetail = null;
-  try {
-    const input = encodeURIComponent(JSON.stringify({ "0": { json: { searchQuery: 'roronoa zoro', sortedBy: 'relevance' } } }));
-    const r = await fetch(`https://character.ai/api/trpc/search.search?batch=1&input=${input}`, { headers: HEADERS });
-    const data = JSON.parse(await r.text());
-    const inner = Array.isArray(data) ? data[0] : data;
-    const chars = inner?.result?.data?.json?.characters ?? [];
-    charDetail = chars[0] ?? null;
-  } catch(e) { charDetail = { error: e.message }; }
-
-  res.json({ urlResults, charDetail });
-});
 
 // Health + token check
 app.get('/health', async (_req, res) => {
