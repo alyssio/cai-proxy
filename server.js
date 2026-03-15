@@ -37,7 +37,7 @@ app.get('/discover', async (_req, res) => {
   const terms = ['anime', 'fantasy', 'romance', 'adventure', 'villain', 'mentor'];
   try {
     const results = await Promise.all(terms.map(async term => {
-      const input = encodeURIComponent(JSON.stringify({ "0": { json: { searchQuery: term, tagId: null, sortedBy: 'relevance', filters: null, cursor: null } } }));
+      const input = encodeURIComponent(JSON.stringify({ "0": { json: { searchQuery: term, sortedBy: 'relevance' } } }));
       const r    = await fetch(`https://character.ai/api/trpc/search.search?batch=1&input=${input}`, { headers: HEADERS });
       const text = await r.text();
       console.log(`search "${term}" → ${r.status}: ${text.slice(0, 200)}`);
@@ -70,7 +70,7 @@ app.get('/search', async (req, res) => {
   const q = (req.query.q ?? '').trim();
   if (!q) return res.status(400).json({ error: 'Missing ?q= parameter.' });
   try {
-    const input = encodeURIComponent(JSON.stringify({ "0": { json: { searchQuery: q, tagId: null, sortedBy: 'relevance', filters: null, cursor: null } } }));
+    const input = encodeURIComponent(JSON.stringify({ "0": { json: { searchQuery: q, sortedBy: 'relevance' } } }));
     const r    = await fetch(`https://character.ai/api/trpc/search.search?batch=1&input=${input}`, { headers: HEADERS });
     const text = await r.text();
     const data = JSON.parse(text);
