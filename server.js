@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
-import { CAINode } from 'cainode';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+const TOKEN = process.env.CAI_TOKEN; // just the hex, no "Token " prefix
 
 app.use(cors({
   origin: [
@@ -13,24 +13,17 @@ app.use(cors({
   ]
 }));
 
-const client = new CAINode();
-let ready = false;
-
-async function init() {
-  await client.login(process.env.CAI_TOKEN);
-  ready = true;
-  console.log('Authenticated with Character.AI');
-}
-init().catch(err => console.error('Auth failed:', err.message));
-
-function checkReady(req, res, next) {
-  if (!ready) return res.status(503).json({ error: 'Server warming up, try again shortly.' });
-  next();
-}
+const HEADERS = {
+  'Authorization': `Token ${TOKEN}`,
+  'Content-Type': 'application/json',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  'Referer': 'https://character.ai/',
+  'Origin': 'https://character.ai',
+};
 
 function mapChar(c) {
   return {
-    id:          c.external_id  ?? c.id ?? '',
+    id:          c.external_id ?? c.id ?? '',
     name:        c.participant__name ?? c.name ?? 'Unknown',
     description: c.description ?? c.tagline ?? c.title ?? '',
     avatar:      c.avatar_file_name
@@ -39,33 +32,48 @@ function mapChar(c) {
   };
 }
 
-// Featured/trending characters
-app.get('/discover', checkReady, async (req, res) => {
+// Featured characters
+app.get('/discover', async (_req, res) => {
   try {
-    const data  = await client.explore.featured();
-    const list  = data?.featured_characters ?? data?.characters ?? data ?? [];
-    res.json({ characters: Array.isArray(list) ? list.map(mapChar) : [] });
+    const r    = await fetch('https://character.ai/api/trpc/character.getFeaturedCharacters', { headers: HEADERS });
+    const text = await r.text();
+    const data = JSON.parse(text);
+    const list = data?.result?.data?.json?.characters
+              ?? data?.featured_characters
+              ?? data?.characters
+              ?? [];
+    res.json({ characters: list.map(mapChar) });
   } catch (err) {
     console.error('/discover error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch characters.' });
+    res.status(500).json({ error: err.message });
   }
 });
 
 // Search characters
-app.get('/search', checkReady, async (req, res) => {
+app.get('/search', async (req, res) => {
   const q = (req.query.q ?? '').trim();
   if (!q) return res.status(400).json({ error: 'Missing ?q= parameter.' });
   try {
-    const data  = await client.search.characters(q);
-    const list  = data?.characters ?? data ?? [];
-    res.json({ characters: Array.isArray(list) ? list.map(mapChar) : [] });
+    const r    = await fetch(`https://character.ai/api/trpc/character.search?input=${encodeURIComponent(JSON.stringify({ query: q }))}`, { headers: HEADERS });
+    const text = await r.text();
+    const data = JSON.parse(text);
+    const list = data?.result?.data?.json?.characters ?? data?.characters ?? [];
+    res.json({ characters: list.map(mapChar) });
   } catch (err) {
     console.error('/search error:', err.message);
-    res.status(500).json({ error: 'Search failed.' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Health check
-app.get('/health', (req, res) => res.json({ ok: true, ready }));
+// Health + token check
+app.get('/health', async (_req, res) => {
+  try {
+    const r = await fetch('https://character.ai/api/trpc/user.get', { headers: HEADERS });
+    const ok = r.ok;
+    res.json({ ok: true, auth: ok, status: r.status });
+  } catch (e) {
+    res.json({ ok: true, auth: false, error: e.message });
+  }
+});
 
 app.listen(PORT, () => console.log(`CAI proxy running on port ${PORT}`));
